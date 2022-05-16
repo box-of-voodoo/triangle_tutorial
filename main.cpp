@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <map>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -39,6 +41,12 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
   }
 }
 
+struct QueueFamilyIndices {
+  std::optional<uint32_t> graphicsFamily;
+
+  bool isComplete() { return graphicsFamily.has_value(); }
+};
+
 class HelloTriangleApplication {
 public:
   void run() {
@@ -54,6 +62,7 @@ private:
   GLFWwindow *window;
   VkInstance instance;
   VkDebugUtilsMessengerEXT debug_messenger;
+  VkPhysicalDevice physical_device = VK_NULL_HANDLE;
 
   void init_window() {
     glfwInit();
@@ -66,7 +75,90 @@ private:
   void init_vulkan() {
     create_instance();
     setup_debug_messenger();
+    pick_physical_device();
   }
+
+  void pick_physical_device() {
+    uint32_t device_count = 0;
+    vkEnumeratePhysicalDevices(instance, &device_count, nullptr);
+    if (device_count == 0) {
+      throw std::runtime_error{"Failed to find GPUs with Vulkan support!"};
+    }
+    std::vector<VkPhysicalDevice> devices(device_count);
+    vkEnumeratePhysicalDevices(instance, &device_count, devices.data());
+
+    std::multimap<int, VkPhysicalDevice> candidates;
+    for (auto &device : devices) {
+      int score = rate_device_suitability(device);
+      candidates.insert(std::make_pair(score, device));
+    }
+    if (candidates.rbegin()->first > 0) {
+      physical_device = candidates.rbegin()->second;
+    } else {
+      throw std::runtime_error{"Failed to find a suitable GPU!"};
+    }
+    if (physical_device == VK_NULL_HANDLE) {
+      throw std::runtime_error{"Failed to find a suitable GPU!"};
+    }
+  }
+
+  int rate_device_suitability(VkPhysicalDevice device) {
+    int score = 0;
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+    if (!deviceFeatures.geometryShader) {
+      return 0;
+    }
+    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+      score += 1000;
+    }
+    score += deviceProperties.limits.maxImageDimension2D;
+
+    QueueFamilyIndices indices = findQueueFamilies(device);
+    if (!indices.isComplete()) {
+      return 0;
+    }
+
+    return score;
+  }
+
+  QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+    QueueFamilyIndices indices;
+    uint32_t queue_family_count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count,
+                                             nullptr);
+    std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count,
+                                             queue_families.data());
+    int i = 0;
+    for (const auto &queue_family : queue_families) {
+      if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        indices.graphicsFamily = i;
+      }
+      if (indices.isComplete()) {
+        break;
+      }
+      i++;
+    }
+
+    return indices;
+  }
+
+  // bool is_device_suitable(VkPhysicalDevice device) {
+  //   VkPhysicalDeviceProperties deviceProperties;
+  //   vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+  //   VkPhysicalDeviceFeatures deviceFeatures;
+  //   vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+  //   return deviceProperties.deviceType ==
+  //              VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+  //          deviceFeatures.geometryShader;
+  // }
 
   void setup_debug_messenger() {
     if (!enableValidationLayers) {
