@@ -13,3 +13,5 @@ target_link_libraries(triangle PRIVATE
     Vulkan::Vulkan
     GLFW::GLFW
 )
+
+target_compile_features(triangle PRIVATE cxx_std_17)
