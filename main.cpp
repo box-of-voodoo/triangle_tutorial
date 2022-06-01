@@ -14,6 +14,9 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <sstream>
+
+#include <config.h>
 
 const std::vector<const char *> validation_layers = {
     "VK_LAYER_KHRONOS_validation"};
@@ -117,8 +120,8 @@ private:
   }
 
   void create_graphic_pipeline() {
-    auto vertShaderCode = readFile("../shaders/vert.spv");
-    auto fragShaderCode = readFile("../shaders/frag.spv");
+    auto vertShaderCode = readFile(SHADERS_BINS,"vert.spv");
+    auto fragShaderCode = readFile(SHADERS_BINS,"frag.spv");
 
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -620,8 +623,10 @@ private:
     return VK_FALSE;
   }
 
-  static std::vector<char> readFile(const std::string &filename) {
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+  static std::vector<char> readFile(const std::string &dir_path, const std::string &filename) {
+    std::stringstream ss;
+    ss << dir_path << "/" << filename;
+    std::ifstream file(ss.str(), std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
       throw std::runtime_error{"Failed to open file!"};
@@ -637,7 +642,7 @@ private:
   }
 };
 
-int main() {
+int main() {  
   HelloTriangleApplication app;
   try {
     app.run();
