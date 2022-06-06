@@ -103,6 +103,8 @@ private:
   VkPipelineLayout pipelineLayout;
   VkPipeline graphicsPipeline;
 
+  std::vector<VkFramebuffer> swapchainFramebuffers;
+
   void init_window() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -121,6 +123,29 @@ private:
     create_image_views();
     create_render_pass();
     create_graphic_pipeline();
+    create_framebuffers();
+  }
+
+  void create_framebuffers() {
+    swapchainFramebuffers.resize(swapchain_image_views.size());
+
+    for (size_t i = 0; i < swapchain_image_views.size(); ++i) {
+      VkImageView attachments[] = {swapchain_image_views[i]};
+
+      VkFramebufferCreateInfo framebufferInfo{};
+      framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+      framebufferInfo.renderPass = renderPass;
+      framebufferInfo.attachmentCount = 1;
+      framebufferInfo.pAttachments = attachments;
+      framebufferInfo.width = swapchainExtent.width;
+      framebufferInfo.height = swapchainExtent.height;
+      framebufferInfo.layers = 1;
+
+      if (vkCreateFramebuffer(device, &framebufferInfo, nullptr,
+                              &swapchainFramebuffers[i]) != VK_SUCCESS) {
+        throw std::runtime_error{"Failed to create framebuffer!"};
+      }
+    }
   }
 
   void create_graphic_pipeline() {
@@ -775,6 +800,9 @@ private:
   }
 
   void cleanup() {
+    for (auto &framebuffer : swapchainFramebuffers) {
+      vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
     vkDestroyPipeline(device, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
